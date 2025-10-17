@@ -1,6 +1,5 @@
 //! Full-featured liblz4 binding for Rust.
 
-#![deny(unsafe_code)]
 #![deny(clippy::all)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

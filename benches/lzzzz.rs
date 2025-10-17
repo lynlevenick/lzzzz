@@ -8,11 +8,22 @@ use std::{
 fn lz4_compress(level: i32, data: &[u8]) {
     let mut buf = [0u8; 4096];
     lz4::compress(data, &mut buf, level).unwrap();
+    black_box(buf);
 }
 
 fn lz4_decompress(orig_len: usize, data: &[u8]) {
     let mut buf = vec![0u8; orig_len];
     lz4::decompress(data, &mut buf).unwrap();
+    black_box(buf);
+}
+
+fn lz4_decompress_uninit(orig_len: usize, data: &[u8]) {
+    let mut buf = Vec::with_capacity(orig_len);
+    unsafe {
+        lz4::decompress_into_ptr(data, buf.as_mut_ptr(), orig_len).unwrap();
+        buf.set_len(orig_len);
+    }
+    black_box(buf);
 }
 
 fn lz4_compress_streaming(n: usize, level: i32, data: &[u8]) {
@@ -21,6 +32,7 @@ fn lz4_compress_streaming(n: usize, level: i32, data: &[u8]) {
     for _ in 0..n {
         comp.next(data, &mut buf, level).unwrap();
     }
+    black_box(buf);
 }
 
 fn lz4_benchmark(c: &mut Criterion) {
@@ -55,6 +67,7 @@ criterion_group!(lz4_benches, lz4_benchmark);
 fn lz4_hc_compress(level: i32, data: &[u8]) {
     let mut buf = [0u8; 4096];
     lz4_hc::compress(data, &mut buf, level).unwrap();
+    black_box(buf);
 }
 
 fn lz4_hc_compress_streaming(n: usize, level: i32, data: &[u8]) {
@@ -64,6 +77,7 @@ fn lz4_hc_compress_streaming(n: usize, level: i32, data: &[u8]) {
     for _ in 0..n {
         comp.next(data, &mut buf).unwrap();
     }
+    black_box(buf);
 }
 
 fn lz4_hc_benchmark(c: &mut Criterion) {
@@ -99,27 +113,35 @@ criterion_group!(lz4_hc_benches, lz4_hc_benchmark);
 fn lz4f_compress(prefs: &lz4f::Preferences, data: &[u8]) {
     let mut buf = [0u8; 4096];
     lz4f::compress(data, &mut buf, prefs).unwrap();
+    black_box(buf);
 }
 
 fn lz4f_decompress(data: &[u8]) {
     let mut buf = Vec::new();
     lz4f::decompress_to_vec(data, &mut buf).unwrap();
+    black_box(buf);
 }
 
 fn lz4f_write_compressor(n: usize, prefs: lz4f::Preferences, data: &[u8]) {
     let mut buf = Vec::new();
-    let mut w = lz4f::WriteCompressor::new(&mut buf, prefs).unwrap();
-    for _ in 0..n {
-        w.write_all(data).unwrap();
+    {
+        let mut w = lz4f::WriteCompressor::new(&mut buf, prefs).unwrap();
+        for _ in 0..n {
+            w.write_all(data).unwrap();
+        }
     }
+    black_box(buf);
 }
 
 fn lz4f_bufread_compressor(n: usize, prefs: lz4f::Preferences, data: &[u8]) {
     let mut buf = Vec::new();
-    let mut r = lz4f::BufReadCompressor::new(data, prefs).unwrap();
-    for _ in 0..n {
-        r.read_to_end(&mut buf).unwrap();
+    {
+        let mut r = lz4f::BufReadCompressor::new(data, prefs).unwrap();
+        for _ in 0..n {
+            r.read_to_end(&mut buf).unwrap();
+        }
     }
+    black_box(buf);
 }
 
 fn lz4f_benchmark(c: &mut Criterion) {
@@ -163,4 +185,20 @@ fn lz4f_benchmark(c: &mut Criterion) {
 }
 
 criterion_group!(lz4f_benches, lz4f_benchmark);
-criterion_main!(lz4_benches, lz4_hc_benches, lz4f_benches);
+
+fn lz4_unsafe_benchmark(c: &mut Criterion) {
+    let data = include_bytes!("lorem-ipsum-100k.txt");
+    let mut compressed = Vec::new();
+    lz4_hc::compress_to_vec(data, &mut compressed, lz4_hc::CLEVEL_MAX).unwrap();
+
+    c.bench_function("lz4_unsafe::decompress", |b| {
+        b.iter(|| lz4_decompress(data.len(), black_box(&compressed)))
+    });
+
+    c.bench_function("lz4_unsafe::decompress_into_ptrs", |b| {
+        b.iter(|| lz4_decompress_uninit(data.len(), black_box(&compressed)))
+    });
+}
+
+criterion_group!(lz4_unsafe_benches, lz4_unsafe_benchmark);
+criterion_main!(lz4_benches, lz4_hc_benches, lz4f_benches, lz4_unsafe_benches);

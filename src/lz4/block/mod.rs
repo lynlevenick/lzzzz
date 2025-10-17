@@ -174,6 +174,12 @@ pub fn decompress(src: &[u8], dst: &mut [u8]) -> Result<usize> {
     api::decompress_safe(src, dst)
 }
 
+pub unsafe fn decompress_into_ptr(src: &[u8], dst: *mut u8, dst_len: usize) -> Result<usize> {
+    unsafe {
+        api::decompress_safe_into_ptr(src, dst, dst_len)
+    }
+}
+
 /// Decompresses an LZ4 block until the destination slice fills up.
 ///
 /// Returns the number of bytes written into the destination buffer.

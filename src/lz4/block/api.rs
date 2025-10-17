@@ -78,12 +78,18 @@ pub fn compress_dest_size(
 }
 
 pub fn decompress_safe(src: &[u8], dst: &mut [u8]) -> Result<usize> {
+    unsafe {
+        decompress_safe_into_ptr(src, dst.as_mut_ptr(), dst.len())
+    }
+}
+
+pub unsafe fn decompress_safe_into_ptr(src: &[u8], dst: *mut u8, dst_len: usize) -> Result<usize> {
     let result = unsafe {
         binding::LZ4_decompress_safe(
             src.as_ptr() as *const c_char,
-            dst.as_mut_ptr() as *mut c_char,
+            dst as *mut c_char,
             src.len() as c_int,
-            dst.len() as c_int,
+            dst_len as c_int,
         )
     };
     if result < 0 {
